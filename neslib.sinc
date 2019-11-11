@@ -39,7 +39,15 @@ nmi:
 
 @doUpdate:
 
-	lda #>OAM_BUF		;update OAM
+;; Doug Fraker's NMI improvements - handle split screens with different CHR banks
+;; For split screens with different CHR bank at top
+;	lda nmiChrTileBank
+;	cmp #NO_CHR_BANK
+;	beq @no_chr_chg
+;	jsr _set_chr_bank_0
+;@no_chr_chg:
+;
+;	lda #>OAM_BUF		; Update OAM
 	sta PPU_OAM_DMA
 
 	lda <PAL_UPDATE		;update palette if needed
@@ -125,7 +133,16 @@ nmi:
 
 @skipNtsc:
 
+;; Doug Fraker's NMI improvements - push music code into a different PRG bank
+;; Switch the music into the PRG bank first
+;	lda MMC1_PRG_BANKNUM ; Save current PRG bank
+;	pha
+;	lda #SOUND_BANK
+;	jsr _mmc1_set_prg_bank_0
 	jsr FamiToneUpdate
+;	pla
+;	sta MMC1_PRG_BANKNUM ; Restore PRG bank
+;	jsr _mmc1_set_prg_bank_0
 
 	pla
 	tay
@@ -1237,5 +1254,37 @@ palBrightTable8:
 	.byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
 	.byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
 	.byte $30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30,$30
+
+.export _mmc1_set_prg_bank, _mmc1_set_chr_bank_0, _mmc1_set_chr_bank_1, _mmc1_set_config_flags
+
+; void __fastcall__ mmc1_set_prg_bank(unsigned char bank_id)
+
+_mmc1_set_prg_bank:
+    ; Store the PRG bank_id in case the NMI handler wants to bankswitch
+    ldx MMC1_PRG_BANKNUM
+    sta MMC1_PRG_BANKNUM
+    mmc1_register_write MMC1_PRG_REG
+    txa
+    rts
+
+; void __fastcall__ mmc1_set_chr_bank_0(unsigned char bank_id)
+
+_mmc1_set_chr_bank_0:
+    mmc1_register_write MMC1_CHR0_REG
+    rts
+
+; void __fastcall__ mmc1_set_chr_bank_1(unsigned char bank_id)
+
+_mmc1_set_chr_bank_1:
+    mmc1_register_write MMC1_CHR1_REG
+    rts
+
+; void __fastcall__ mmc1_set_config_flags(unsigned char config_flags)
+
+; Control register config
+
+_mmc1_set_config_flags:
+    mmc1_register_write MMC1_CTRL_REG
+    rts
 
 	.include "famitone2.sinc"
